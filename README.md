@@ -1,1 +1,1 @@
-new project
+ДЗ по курсу  Data Science
