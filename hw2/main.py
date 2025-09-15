@@ -53,9 +53,13 @@ def main():
     X_train_scaled, X_test_scaled, scaler = ml_module.scale_features(X_train, X_test)
     
     # Обучение линейной регрессии
-    print("\nОбучение линейной регрессии...")
+    print()
+    print('=' * 60)
+    print("Обучение линейной регрессии...")
     model = ml_module.train_linear_regression(X_train_scaled, y_train)
-    
+    print('=' * 60)
+    print()
+
     # Предсказание
     y_pred = ml_module.predict(model, X_test_scaled)
     
