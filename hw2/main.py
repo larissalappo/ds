@@ -52,7 +52,7 @@ def main():
     # Масштабирование признаков
     X_train_scaled, X_test_scaled, scaler = ml_module.scale_features(X_train, X_test)
     
-    # Обучение линейной регрессии
+    # Обучение модели
     print()
     print('=' * 60)
     print("Обучение линейной регрессии...")
