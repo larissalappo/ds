@@ -53,7 +53,7 @@ def get_coefficients(model, feature_names: list) -> pd.DataFrame:
 
 def print_coefficients(coefficients_df: pd.DataFrame):
     """Вывод коэффициентов модели."""
-    print("=== Коэффициенты линейной регрессии ===")
+    print("======== Коэффициенты линейной регрессии ===================")
     for i, (_, row) in enumerate(coefficients_df.iterrows()):
         print(f"{i+1:2d}. {row['feature']:25s}: {row['coefficient']:10.4f}")
     print("=" * 60)

@@ -100,6 +100,6 @@ def plot_correlation_with_target(df: pd.DataFrame, target_column: str = 'Credit_
     
     # Выводим численные значения корреляции
     print("\nТоп-10 признаков по корреляции с Credit_Limit:")
-    print("=" * 50)
+    print("=" * 60)
     for i, (feature, corr) in enumerate(top_correlations.head(10).items(), 1):
         print(f"{i:2d}. {feature:25s}: {corr:7.3f}")
