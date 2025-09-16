@@ -27,6 +27,9 @@ def prepare_data(df: pd.DataFrame) -> tuple:
     
     df_processed = df.copy()
     # Удаляем ненужные колонки из копии, чтобы выводить их при визуализации датасета
+    print('=' * 60)
+    print('Удаляем ненужные (не используются при анализе) колонки из копии, чтобы выводить их при визуализации датасета')
+    print('Удаляем Avg_Open_To_Buy из-за кореляции с Credit_Limit')
     cols_to_drop = [
         'CLIENTNUM', 
         'Attrition_Flag', 
@@ -39,6 +42,8 @@ def prepare_data(df: pd.DataFrame) -> tuple:
             print(f"Удален столбец: {col}")
     
     # Удаляем выбросы
+    print("=" * 60)
+    print('Удаляем выбросы по Credit_Limit, Avg_Utilization_Ratio, Total_Revolving_Bal, Total_Trans_Amt, Total_Trans_Ct')
     df_processed = remove_outliers(df_processed, ['Credit_Limit', 'Avg_Utilization_Ratio', 'Total_Revolving_Bal', 'Total_Trans_Amt', 'Total_Trans_Ct'])
     
     # Кодируем категориальные переменные
