@@ -36,11 +36,9 @@ def main():
     
     # Построим график корреляции с целевой переменной
     visualization.plot_correlation_with_target(df, 'Credit_Limit')
-    
+      
     # Подготовка данных
-
     X, y = data_processing.prepare_data(df)
-    
     if X is None or y is None:
         return
     
@@ -75,8 +73,6 @@ def main():
     
     # Визуализация
     visualization.plot_predictions(y_test, y_pred)
-    visualization.plot_residuals(y_test, y_pred)
-    visualization.plot_feature_importance(coefficients, "Важность признаков для кредитного лимита")
     
     print("Анализ завершен!")
 
