@@ -35,7 +35,7 @@ def print_view_sample(conn, view_name, limit=20):
         df = pd.read_sql_query(query, conn)
         if len(df) > 0:
             print(df.to_string(index=False))
-            print(f"Всего записей в view: {pd.read_sql_query(f'SELECT COUNT(*) FROM {view_name}', conn).iloc[0,0]}")
+            print(f"Всего записей в представлении {view_name}: {pd.read_sql_query(f'SELECT COUNT(*) FROM {view_name}', conn).iloc[0,0]}")
         else:
             print("Представление пустое")
     except Exception as e:
@@ -53,16 +53,12 @@ def create_raw_tables():
         intake_df = pd.read_csv('data/aac_intakes.csv')
         print("Загружаем aac_outcomes.csv...")
         outcome_df = pd.read_csv('data/aac_outcomes.csv')
-        print("Загружаем aac_intakes_outcomes.csv...")
-        intake_outcome_df = pd.read_csv('data/aac_intakes_outcomes.csv')
 
         # Создаем сырые таблицы
         print("Сохраняем raw_intake...")
         intake_df.to_sql('raw_intake', conn, if_exists='replace', index=False)
         print("Сохраняем raw_outcome...")
         outcome_df.to_sql('raw_outcome', conn, if_exists='replace', index=False)
-        print("Сохраняем raw_intake_outcome...")
-        intake_outcome_df.to_sql('raw_intake_outcome', conn, if_exists='replace', index=False)
 
         print("Сырые таблицы созданы успешно")
         print()
@@ -86,54 +82,39 @@ def create_temp_views():
     try:
         # Временное представление для уникальных животных
         print("Создаем представление unique_animals...")
+        print("Выбираем уникальные animal_id из raw_intake и raw_outcome и к ним присоединяем данные о name, animal_type, breed, color из raw_outcome, если есть, иначе - из raw_intake")
         cursor.execute('''
         CREATE VIEW IF NOT EXISTS unique_animals AS
-        SELECT DISTINCT
-            animal_id,
-            name,
-            animal_type,
-            breed,
-            color
-        FROM (
-            SELECT animal_id, name, animal_type, breed, color FROM raw_intake
-            UNION
-            SELECT animal_id, name, animal_type, breed, color FROM raw_outcome
-             )
-        ''')
-
-        # Временное представление для статистики типов животных
-        print("Создаем представление animal_type_stats...")
-        cursor.execute('''
-        CREATE VIEW IF NOT EXISTS animal_type_stats AS
-        SELECT
-            animal_type,
-            COUNT(*) as count,
-            ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM unique_animals), 2) as percentage
-        FROM unique_animals
-        GROUP BY animal_type
-        ORDER BY count DESC
-        ''')
-
-        # Временное представление для статистики пород
-        print("Создаем представление breed_stats...")
-        cursor.execute('''
-        CREATE VIEW IF NOT EXISTS breed_stats AS
-        SELECT
-            breed,
-            COUNT(*) as count,
-            ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM unique_animals), 2) as percentage
-        FROM unique_animals
-        GROUP BY breed
-        ORDER BY count DESC
+        SELECT 
+            intake.animal_id,
+            COALESCE(out.name, intake.name) AS name,
+            COALESCE(out.animal_type, intake.animal_type) AS animal_type,
+            COALESCE(out.breed, intake.breed) AS breed,
+            COALESCE(out.color, intake.color) AS color
+        FROM 
+            raw_intake intake
+        LEFT JOIN 
+            raw_outcome out ON intake.animal_id = out.animal_id
+        UNION
+        SELECT 
+            out.animal_id,
+            out.name,
+            out.animal_type,
+            out.breed,
+            out.color
+        FROM 
+            raw_outcome out
+        LEFT JOIN 
+            raw_intake intake ON out.animal_id = intake.animal_id
+        WHERE 
+            intake.animal_id IS NULL
         ''')
 
         conn.commit()
-        print("Временные представления созданы успешно")
+        print("Временное представленияе создано успешно")
 
-        # Выводим sample данных из представлений
-        print_table_sample(conn, 'unique_animals')
-        print_table_sample(conn, 'animal_type_stats')
-        print_table_sample(conn, 'breed_stats')
+        print()
+        print_view_sample(conn, 'unique_animals')
 
     except Exception as e:
         print(f"❌ Ошибка при создании временных представлений: {e}")
@@ -143,32 +124,21 @@ def create_temp_views():
 
 def analyze_raw_data():
     """Анализ сырых данных перед обработкой"""
-    print("\nАнализируем сырые данные...")
+    print("\nАнализируем данные в представлениях")
 
     conn = sqlite3.connect('animal_shelter.db')
 
     try:
-        # Основная статистика
-        print("Основная статистика:")
-        intake_count = pd.read_sql_query("SELECT COUNT(*) FROM raw_intake", conn).iloc[0,0]
-        outcome_count = pd.read_sql_query("SELECT COUNT(*) FROM raw_outcome", conn).iloc[0,0]
-        unique_animals_count = pd.read_sql_query("SELECT COUNT(*) FROM unique_animals", conn).iloc[0,0]
+        print("\nПроверяем, что у нас не размножились записи при формировании unique_animals")
+        unique_animal_id = pd.read_sql_query('WITH s1 as (SELECT animal_id FROM raw_outcome UNION SELECT animal_id FROM raw_intake) SELECT count(animal_id) from s1', conn).iloc[0,0]
+        unique_animals_records_count = pd.read_sql_query(f'SELECT COUNT(*) FROM unique_animals', conn).iloc[0,0] 
+        if unique_animal_id == unique_animals_records_count:
+            print("Всего уникальных animal_id в raw_intake и raw_outcome:", unique_animal_id, "что равно количеству записей в unique_animals")
+        else:
+            ("Что-то пошло не так. Всего уникальных animal_id в raw_intake и raw_outcome: ", unique_animal_id, "что не равно количеству записей в unique_animals")
 
-        print(f"   Поступления (intake): {intake_count} записей")
-        print(f"   Исходы (outcome): {outcome_count} записей")
-        print(f"   Уникальных животных: {unique_animals_count}")
+        print("\nМожно сделать еще много разных представлений и запросов, но в DBeaver это делать удобнее\n")
 
-        # Статистика по типам животных
-        print("\nРаспределение по типам животных:")
-        type_stats = pd.read_sql_query("SELECT * FROM animal_type_stats", conn)
-        for _, row in type_stats.iterrows():
-            print(f"   {row['animal_type']}: {row['count']} ({row['percentage']}%)")
-
-        # Топ-5 пород
-        print("\nТоп-5 пород:")
-        breed_stats = pd.read_sql_query("SELECT * FROM breed_stats LIMIT 5", conn)
-        for _, row in breed_stats.iterrows():
-            print(f"   {row['breed']}: {row['count']} ({row['percentage']}%)")
 
     except Exception as e:
         print(f"❌ Ошибка при анализе данных: {e}")
@@ -315,17 +285,42 @@ def create_normalized_tables():
 
         cursor.execute('''
         INSERT INTO outcome (animal_id, outcome_date, outcome_type, outcome_subtype, days_in_shelter)
+        WITH intake_dates AS (
+            SELECT 
+                animal_id,
+                datetime,
+                ROW_NUMBER() OVER (PARTITION BY animal_id ORDER BY datetime) AS rn
+            FROM 
+                raw_intake
+        ),
+        outcome_dates AS (
+            SELECT 
+                out.animal_id,
+                out.datetime AS outcome_datetime,
+                out.outcome_type,
+                out.outcome_subtype,
+                intake.datetime AS intake_datetime,
+                ROW_NUMBER() OVER (PARTITION BY out.animal_id ORDER BY out.datetime) AS rn
+            FROM 
+                raw_outcome out
+            LEFT JOIN intake_dates intake ON out.animal_id = intake.animal_id
+            WHERE intake.datetime IS NOT NULL
+        )
         SELECT
-            raw_outcome.animal_id,
-            raw_outcome.datetime,
-            raw_outcome.outcome_type,
-            raw_outcome.outcome_subtype,
-            case when coalesce(raw_outcome.datetime,0) <> 0 and coalesce(raw_intake.datetime,0) <> 0 and coalesce(raw_outcome.datetime,0) > coalesce(raw_intake.datetime,0)
-                 then julianday(raw_outcome.datetime) - julianday(raw_intake.datetime)
-                 else null
-            end
-        FROM raw_outcome
-        left join raw_intake on raw_outcome.animal_id=raw_intake.animal_id
+            animal_id,
+            outcome_datetime,
+            outcome_type,
+            outcome_subtype,
+            CASE
+                WHEN intake_datetime IS NOT NULL AND outcome_datetime IS NOT NULL THEN
+                    julianday(outcome_datetime) - julianday(intake_datetime)
+                ELSE
+                    NULL
+            END AS days_in_shelter
+        FROM 
+            outcome_dates
+        WHERE 
+            rn = 1
         ''')
         print(f"   Добавлено выходов: {cursor.rowcount}")
 
@@ -346,7 +341,7 @@ def drop_temp_views():
     cursor = conn.cursor()
 
     try:
-        views = ['unique_animals', 'animal_type_stats', 'breed_stats']
+        views = ['unique_animals']
         for view in views:
             cursor.execute(f"DROP VIEW IF EXISTS {view}")
             print(f"   Удалено представление: {view}")
@@ -393,6 +388,12 @@ def print_database_structure():
         print_table_sample(conn, 'animals')
         print_table_sample(conn, 'intake')
         print_table_sample(conn, 'outcome')
+
+        print("""\nТаблицу outcome обогатили полем days_in_shelter, которое рассчитали как разницу между raw_outcome.datetime и raw_intake.datetime, связав по animal_id.
+             Учтено, что может быть несколько записей по одному animal_id в каждой из raw_outcome и raw_intake - берем ближайшую следующую raw_outcome.datetime для каждой raw_intake.datetime. 
+             Также учтено, что может быть не заполнено какое-то из raw_outcome.datetime или raw_intake.datetime или оба - тогда days_in_shelter is null.
+             При оптимизации запроса использованы CTE (with) и оконная функция ROW_NUMBER()
+             """)
 
     except Exception as e:
         print(f"❌ Ошибка при выводе структуры: {e}")
