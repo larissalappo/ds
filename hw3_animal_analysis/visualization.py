@@ -13,11 +13,11 @@ def create_visualizations():
         # Типы поступлений в приют
         query = "SELECT intake_type, COUNT(*) as count,ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM animals), 2) as percentage FROM intake GROUP BY intake_type"
         df = pd.read_sql_query(query, conn)
-        
+
         print("\nТипы поступлений в приют:")
         print(df.to_string(index=False))
         print()
-        
+
         plt.figure(figsize=(10, 6))
         bars = plt.bar(df['intake_type'], df['count'])
         plt.title('Типы поступлений в приют', fontsize=16, fontweight='bold')
@@ -44,7 +44,7 @@ def create_visualizations():
         ORDER BY month
         '''
         df = pd.read_sql_query(query, conn)
-        
+
         print()
         print()
         print()
@@ -57,7 +57,7 @@ def create_visualizations():
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.show()
-        
+
         # Распределение по типам животных
         print()
         query = '''
@@ -147,24 +147,24 @@ def create_visualizations():
         print("Визуализации созданы успешно!")
 
     except Exception as e:
-        print(f"❌ Ошибка при создании визуализаций: {e}")
+        print(f"Ошибка при создании визуализаций: {e}")
         raise
     finally:
         conn.close()
 
 def create_correlation_matrix():
     """Создание матрицы корреляции для числовых данных"""
-    
+
     conn = sqlite3.connect('animal_shelter.db')
-    
+
     try:
         print("=" * 60)
         print("\nМАТРИЦА КОРРЕЛЯЦИИ")
         print("=" * 60)
-        
+
         # Получаем данные для корреляционного анализа
         query = '''
-        SELECT 
+        SELECT
             a.animal_id,
             at.animal_type,
             b.breed_name,
@@ -182,59 +182,59 @@ def create_correlation_matrix():
         JOIN intake i ON a.animal_id = i.animal_id
         LEFT JOIN outcome o ON a.animal_id = o.animal_id
         '''
-        
+
         df = pd.read_sql_query(query, conn)
-        
+
         # Преобразуем категориальные переменные в числовые
         df_numeric = df.copy()
-        
+
         # Кодируем категориальные переменные
-        categorical_cols = ['animal_type', 'breed_name', 'color_name', 'intake_type', 
+        categorical_cols = ['animal_type', 'breed_name', 'color_name', 'intake_type',
                            'intake_condition', 'outcome_type']
-        
+
         for col in categorical_cols:
             if col in df_numeric.columns:
                 df_numeric[col] = pd.factorize(df_numeric[col])[0]
-        
+
         # Удаляем столбцы с большим количеством пропущенных значений
         df_numeric = df_numeric.dropna(subset=['days_in_shelter'], how='any')
-        
+
         # Выбираем только числовые столбцы для корреляции
-        numeric_columns = ['animal_type', 'breed_name', 'color_name', 'intake_type', 
-                          'intake_condition', 'outcome_type', 'days_in_shelter', 
+        numeric_columns = ['animal_type', 'breed_name', 'color_name', 'intake_type',
+                          'intake_condition', 'outcome_type', 'days_in_shelter',
                           'has_name', 'name_length']
-        
+
         correlation_df = df_numeric[numeric_columns].corr()
-        
+
         # Выводим матрицу корреляции
         print("\nМатрица корреляции числовых признаков:")
         print("-" * 60)
         print(correlation_df.round(3))
-        
+
         # Визуализация тепловой карты корреляции
         plt.figure(figsize=(12, 10))
         mask = np.triu(np.ones_like(correlation_df, dtype=bool))  # Маска для верхнего треугольника
-        
-        sns.heatmap(correlation_df, 
-                   annot=True, 
-                   cmap='coolwarm', 
+
+        sns.heatmap(correlation_df,
+                   annot=True,
+                   cmap='coolwarm',
                    center=0,
                    square=True,
                    mask=mask,
                    fmt='.3f',
                    linewidths=0.5,
                    cbar_kws={"shrink": .8})
-        
+
         plt.title('Матрица корреляции числовых признаков\n', fontsize=16, fontweight='bold')
         plt.xticks(rotation=45, ha='right')
         plt.yticks(rotation=0)
         plt.tight_layout()
         plt.show()
-        
+
         # Анализ наиболее значимых корреляций
         print("\nНаиболее значимые корреляции:")
         print("-" * 40)
-        
+
         # Ищем значимые корреляции (|r| > 0.1)
         significant_correlations = []
         for i in range(len(correlation_df.columns)):
@@ -246,36 +246,36 @@ def create_correlation_matrix():
                         'feature2': correlation_df.columns[j],
                         'correlation': corr_value
                     })
-        
+
         # Сортируем по абсолютному значению корреляции
         significant_correlations.sort(key=lambda x: abs(x['correlation']), reverse=True)
-        
+
         for corr in significant_correlations[:10]:  # Топ-10 наиболее значимых
             print(f"{corr['feature1']} ↔ {corr['feature2']}: {corr['correlation']:.3f}")
-        
+
         # Анализ корреляции с days_in_shelter
         print("\nКорреляция с временем пребывания в приюте (days_in_shelter):")
         print("-" * 60)
-        
+
         shelter_corr = correlation_df['days_in_shelter'].sort_values(key=abs, ascending=False)
         for feature, corr_value in shelter_corr.items():
             if feature != 'days_in_shelter' and abs(corr_value) > 0.05:
                 direction = "положительная" if corr_value > 0 else "отрицательная"
                 print(f"{feature}: {corr_value:.3f} ({direction} корреляция)")
-        
+
     except Exception as e:
-        print(f"❌ Ошибка при создании матрицы корреляции: {e}")
+        print(f"Ошибка при создании матрицы корреляции: {e}")
         raise
     finally:
         conn.close()
 
 def perform_additional_analysis():
     """Дополнительный анализ данных"""
-    
+
     conn = sqlite3.connect('animal_shelter.db')
 
     try:
-        
+
         # Top 10 самых распространенных пород
         print("\nTop 10 самых распространенных пород:")
         query = '''
@@ -376,7 +376,7 @@ def perform_additional_analysis():
 
 
     except Exception as e:
-        print(f"❌ Ошибка при дополнительном анализе: {e}")
+        print(f"Ошибка при дополнительном анализе: {e}")
     finally:
         conn.close()
 

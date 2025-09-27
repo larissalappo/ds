@@ -24,7 +24,7 @@ def print_table_sample(conn, table_name, limit=20):
         else:
             print("Таблица пуста")
     except Exception as e:
-        print(f"❌ Ошибка при чтении таблицы {table_name}: {e}")
+        print(f"Ошибка при чтении таблицы {table_name}: {e}")
 
 def print_view_sample(conn, view_name, limit=20):
     """Вывод sample данных из view"""
@@ -67,7 +67,7 @@ def create_raw_tables():
         print_table_sample(conn, 'raw_outcome')
 
     except Exception as e:
-        print(f"❌ Ошибка при создании сырых таблиц: {e}")
+        print(f"Ошибка при создании сырых таблиц: {e}")
         raise
     finally:
         conn.close()
@@ -85,28 +85,28 @@ def create_temp_views():
         print("Выбираем уникальные animal_id из raw_intake и raw_outcome и к ним присоединяем данные о name, animal_type, breed, color из raw_outcome, если есть, иначе - из raw_intake")
         cursor.execute('''
         CREATE VIEW IF NOT EXISTS unique_animals AS
-        SELECT 
+        SELECT
             intake.animal_id,
             COALESCE(out.name, intake.name) AS name,
             COALESCE(out.animal_type, intake.animal_type) AS animal_type,
             COALESCE(out.breed, intake.breed) AS breed,
             COALESCE(out.color, intake.color) AS color
-        FROM 
+        FROM
             raw_intake intake
-        LEFT JOIN 
+        LEFT JOIN
             raw_outcome out ON intake.animal_id = out.animal_id
         UNION
-        SELECT 
+        SELECT
             out.animal_id,
             out.name,
             out.animal_type,
             out.breed,
             out.color
-        FROM 
+        FROM
             raw_outcome out
-        LEFT JOIN 
+        LEFT JOIN
             raw_intake intake ON out.animal_id = intake.animal_id
-        WHERE 
+        WHERE
             intake.animal_id IS NULL
         ''')
 
@@ -117,7 +117,7 @@ def create_temp_views():
         print_view_sample(conn, 'unique_animals')
 
     except Exception as e:
-        print(f"❌ Ошибка при создании временных представлений: {e}")
+        print(f"Ошибка при создании временных представлений: {e}")
         raise
     finally:
         conn.close()
@@ -131,7 +131,7 @@ def analyze_raw_data():
     try:
         print("\nПроверяем, что у нас не размножились записи при формировании unique_animals")
         unique_animal_id = pd.read_sql_query('WITH s1 as (SELECT animal_id FROM raw_outcome UNION SELECT animal_id FROM raw_intake) SELECT count(animal_id) from s1', conn).iloc[0,0]
-        unique_animals_records_count = pd.read_sql_query(f'SELECT COUNT(*) FROM unique_animals', conn).iloc[0,0] 
+        unique_animals_records_count = pd.read_sql_query(f'SELECT COUNT(*) FROM unique_animals', conn).iloc[0,0]
         if unique_animal_id == unique_animals_records_count:
             print("Всего уникальных animal_id в raw_intake и raw_outcome:", unique_animal_id, "что равно количеству записей в unique_animals")
         else:
@@ -141,7 +141,7 @@ def analyze_raw_data():
 
 
     except Exception as e:
-        print(f"❌ Ошибка при анализе данных: {e}")
+        print(f"Ошибка при анализе данных: {e}")
         raise
     finally:
         conn.close()
@@ -286,22 +286,22 @@ def create_normalized_tables():
         cursor.execute('''
         INSERT INTO outcome (animal_id, outcome_date, outcome_type, outcome_subtype, days_in_shelter)
         WITH intake_dates AS (
-            SELECT 
+            SELECT
                 animal_id,
                 datetime,
                 ROW_NUMBER() OVER (PARTITION BY animal_id ORDER BY datetime) AS rn
-            FROM 
+            FROM
                 raw_intake
         ),
         outcome_dates AS (
-            SELECT 
+            SELECT
                 out.animal_id,
                 out.datetime AS outcome_datetime,
                 out.outcome_type,
                 out.outcome_subtype,
                 intake.datetime AS intake_datetime,
                 ROW_NUMBER() OVER (PARTITION BY out.animal_id ORDER BY out.datetime) AS rn
-            FROM 
+            FROM
                 raw_outcome out
             LEFT JOIN intake_dates intake ON out.animal_id = intake.animal_id
             WHERE intake.datetime IS NOT NULL
@@ -317,9 +317,9 @@ def create_normalized_tables():
                 ELSE
                     NULL
             END AS days_in_shelter
-        FROM 
+        FROM
             outcome_dates
-        WHERE 
+        WHERE
             rn = 1
         ''')
         print(f"   Добавлено выходов: {cursor.rowcount}")
@@ -328,7 +328,7 @@ def create_normalized_tables():
         print("Нормализованная структура создана успешно")
 
     except Exception as e:
-        print(f"❌ Ошибка при создании нормализованной структуры: {e}")
+        print(f"Ошибка при создании нормализованной структуры: {e}")
         raise
     finally:
         conn.close()
@@ -350,7 +350,7 @@ def drop_temp_views():
         print("Временные представления удалены")
 
     except Exception as e:
-        print(f"❌ Ошибка при удалении представлений: {e}")
+        print(f"Ошибка при удалении представлений: {e}")
         raise
     finally:
         conn.close()
@@ -390,13 +390,13 @@ def print_database_structure():
         print_table_sample(conn, 'outcome')
 
         print("""\nТаблицу outcome обогатили полем days_in_shelter, которое рассчитали как разницу между raw_outcome.datetime и raw_intake.datetime, связав по animal_id.
-             Учтено, что может быть несколько записей по одному animal_id в каждой из raw_outcome и raw_intake - берем ближайшую следующую raw_outcome.datetime для каждой raw_intake.datetime. 
+             Учтено, что может быть несколько записей по одному animal_id в каждой из raw_outcome и raw_intake - берем ближайшую следующую raw_outcome.datetime для каждой raw_intake.datetime.
              Также учтено, что может быть не заполнено какое-то из raw_outcome.datetime или raw_intake.datetime или оба - тогда days_in_shelter is null.
              При оптимизации запроса использованы CTE (with) и оконная функция ROW_NUMBER()
              """)
 
     except Exception as e:
-        print(f"❌ Ошибка при выводе структуры: {e}")
+        print(f"Ошибка при выводе структуры: {e}")
         raise
     finally:
         conn.close()
